@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Ação GPTW</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { primary: '#ff5510', dark: '#121212', darkGray: '#2d2d2d', lightGray: '#f5f5f5', medGray: '#9ca3af' },
+                    fontFamily: { rubik: ['Rubik', 'sans-serif'], arial: ['Arial', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        .font-rubik { font-family: 'Rubik', sans-serif; }
+        body { font-family: 'Arial', sans-serif; background-color: #f5f5f5; color: #121212; }
+        .action-card.done { opacity: 0.75; }
+        #modal { display: none; }
+        #modal.active { display: flex; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="bg-dark text-white rounded-xl shadow-md p-6 mb-8 flex flex-col md:flex-row justify-between items-center">
+        <div>
+            <h1 class="font-rubik text-3xl font-bold text-primary">Plano de Ação GPTW</h1>
+            <h2 class="font-rubik text-lg text-medGray mt-1">Coordenação do Time de Analistas</h2>
+        </div>
+        <div class="mt-4 md:mt-0 text-right">
+            <p class="font-rubik font-bold text-xl"><span id="total-done">0</span> de 9 ações concluídas</p>
+            <div class="w-full md:w-64 bg-darkGray rounded-full h-4 mt-2 border border-gray-700">
+                <div id="total-progress" class="bg-primary h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Container das Seções -->
+    <div id="app-container" class="space-y-8"></div>
+
+    <!-- Botão de Relatório -->
+    <div class="mt-12 text-center">
+        <button onclick="gerarRelatorio()" class="bg-dark text-white font-rubik font-bold py-3 px-8 rounded-xl shadow-md hover:bg-darkGray transition">
+            Gerar Relatório de Status
+        </button>
+    </div>
+
+    <!-- Modal Relatório -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-80 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-3xl flex flex-col max-h-[90vh]">
+            <h2 class="font-rubik font-bold text-2xl mb-4 text-dark">Relatório de Status</h2>
+            <textarea id="relatorio-texto" class="flex-1 w-full border border-gray-300 rounded p-4 text-sm resize-none mb-4" readonly></textarea>
+            <div class="flex justify-end space-x-4">
+                <button onclick="fecharModal()" class="px-6 py-2 bg-gray-300 text-dark rounded-lg font-bold hover:bg-gray-400">Fechar</button>
+                <button onclick="copiarRelatorio()" class="px-6 py-2 bg-primary text-white rounded-lg font-bold hover:bg-orange-600">Copiar Texto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LÓGICA E FIREBASE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+
+        // SUA CHAVE DO FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyDyWHhmeMeeDn5xrv_n_LDOaC4cWnN3Sqg",
+            authDomain: "gptw-atualizado.firebaseapp.com",
+            projectId: "gptw-atualizado",
+            storageBucket: "gptw-atualizado.firebasestorage.app",
+            messagingSenderId: "617481663422",
+            appId: "1:617481663422:web:8b766faedbe1589dda7fef"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        let docRef;
+
+        // Estrutura de Dados
+        const plano = [
+            { id: 's1', titulo: "1. As lideranças sabem coordenar pessoas e distribuir tarefas adequadamente?", acoes: [
+                { id: 1, titulo: "Programa Contínuo de Capacitação", oque: "Mapear lacunas técnicas e comportamentais da equipe.", como: "Estabelecer agenda mensal de Treinamento Interno." },
+                { id: 2, titulo: "Reestruturação da Carteira (Clusters)", oque: "Balancear a carga de trabalho do time de analistas.", como: "Levantar complexidade e criar Clusters com pesos equivalentes." },
+                { id: 3, titulo: "Matriz de Rodízio e Squads", oque: "Garantir oportunidades iguais de desenvolvimento.", como: "Criar Matriz de Projetos e alocar pessoas há +3 meses sem novos desafios." }
+            ]},
+            { id: 's2', titulo: "2. As lideranças me mantêm informado(a) sobre assuntos importantes e mudanças.", acoes: [
+                { id: 4, titulo: "Ponto Focal de Comunicação", oque: "Evitar ruídos e informações desencontradas.", como: "Coordenador como filtro oficial e encontro semanal de alinhamento." },
+                { id: 5, titulo: "Fluxo Integrado de Pessoal", oque: "Garantir atualização rápida de painéis e acessos.", como: "Processo com RH/DHO via planilha compartilhada (SLA de 24h)." },
+                { id: 6, titulo: "Radar de Negócios", oque: "Dar contexto macro para a equipe de analistas.", como: "Bloco de Radar na reunião quinzenal de resultados." }
+            ]},
+            { id: 's3', titulo: "3. Minha liderança imediata age de acordo com o que fala.", acoes: [
+                { id: 7, titulo: "Registro de Reuniões", oque: "Formalizar decisões (Ata).", como: "Template padrão com resumo de decisões, responsáveis e prazos via e-mail." },
+                { id: 8, titulo: "Organização de Canais", oque: "Padronizar comunicação.", como: "Espaços Google Chat: Avisos e Dúvidas. Demandas complexas via chamado." },
+                { id: 9, titulo: "Sincronia de Agenda", oque: "Evitar repasses urgentes.", como: "Alinhamentos de time 24h/48h após reuniões da diretoria." }
+            ]}
+        ];
+
+        let state = { status: {}, notes: {} };
+
+        // Renderização Dinâmica
+        function renderizar() {
+            const container = document.getElementById('app-container');
+            container.innerHTML = '';
+            let totalDone = 0;
+
+            plano.forEach(sec => {
+                let secDone = 0;
+                let htmlAcoes = '';
+                
+                sec.acoes.forEach(acao => {
+                    const statusAtual = state.status[acao.id] || 'fazer';
+                    if(statusAtual === 'concluido') { secDone++; totalDone++; }
+                    const notes = state.notes[acao.id] || [];
+                    
+                    const btnClass = (tipo) => {
+                        if(tipo === 'fazer') return statusAtual === 'fazer' ? 'bg-medGray text-white' : 'bg-gray-200 text-gray-600';
+                        if(tipo === 'andamento') return statusAtual === 'andamento' ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600';
+                        if(tipo === 'concluido') return statusAtual === 'concluido' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600';
+                    };
+
+                    const isDoneClass = statusAtual === 'concluido' ? 'done' : '';
+
+                    let notesHtml = notes.map(n => `<div class="bg-gray-100 p-2 text-sm mt-1 border-l-4 border-primary">${n.data} - ${n.texto}</div>`).join('');
+
+                    htmlAcoes += `
+                        <div class="action-card ${isDoneClass} border-b border-gray-200 py-4 last:border-0">
+                            <h3 class="font-rubik font-bold text-lg mb-2">${acao.id}. ${acao.titulo}</h3>
+                            <p class="text-sm mb-1"><strong>O que:</strong> ${acao.oque}</p>
+                            <p class="text-sm mb-4"><strong>Como:</strong> ${acao.como}</p>
+                            
+                            <div class="flex flex-col md:flex-row md:items-center justify-between bg-white p-3 rounded shadow-sm border border-gray-100">
+                                <div class="flex space-x-2 mb-3 md:mb-0">
+                                    <button onclick="mudarStatus(${acao.id}, 'fazer')" class="px-3 py-1 rounded text-xs font-bold transition ${btnClass('fazer')}">A Fazer</button>
+                                    <button onclick="mudarStatus(${acao.id}, 'andamento')" class="px-3 py-1 rounded text-xs font-bold transition ${btnClass('andamento')}">Em Andamento</button>
+                                    <button onclick="mudarStatus(${acao.id}, 'concluido')" class="px-3 py-1 rounded text-xs font-bold transition ${btnClass('concluido')}">Concluído</button>
+                                </div>
+                                <div class="w-full md:w-auto">
+                                    <div class="flex space-x-2">
+                                        <input type="text" id="input-note-${acao.id}" placeholder="Nova anotação..." class="flex-1 border rounded px-2 py-1 text-sm">
+                                        <button onclick="addNota(${acao.id})" class="bg-dark text-white px-3 py-1 rounded text-sm font-bold hover:bg-primary transition">+ Add</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2 pl-4">${notesHtml}</div>
+                        </div>
+                    `;
+                });
+
+                const pct = Math.round((secDone / sec.acoes.length) * 100);
+
+                container.innerHTML += `
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <h2 class="font-rubik font-bold text-xl text-dark mb-4 border-b pb-2">${sec.titulo}</h2>
+                        ${htmlAcoes}
+                        <div class="mt-4 pt-4 border-t">
+                            <div class="flex justify-between text-sm font-bold mb-1"><span>Progresso da Seção</span><span>${pct}%</span></div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Atualiza Header
+            document.getElementById('total-done').innerText = totalDone;
+            document.getElementById('total-progress').style.width = Math.round((totalDone / 9) * 100) + '%';
+        }
+
+        // Funções de Interação (Expostas ao Window para o HTML conseguir chamar)
+        window.mudarStatus = (id, novoStatus) => {
+            state.status[id] = novoStatus;
+            salvarNuvem();
+        }
+
+        window.addNota = (id) => {
+            const input = document.getElementById(`input-note-${id}`);
+            if(!input.value.trim()) return;
+            
+            if(!state.notes[id]) state.notes[id] = [];
+            const dataHora = new Date().toLocaleString('pt-BR');
+            state.notes[id].push({ data: dataHora, texto: input.value });
+            
+            if(!state.status[id] || state.status[id] === 'fazer') state.status[id] = 'andamento';
+            
+            input.value = '';
+            salvarNuvem();
+        }
+
+        function salvarNuvem() {
+            setDoc(docRef, state).catch(e => console.error("Erro ao salvar:", e));
+        }
+
+        // Relatório
+        window.gerarRelatorio = () => {
+            let texto = "📊 RELATÓRIO: PLANO DE AÇÃO GPTW\n==================================\n\n";
+            let total = 0;
+            Object.values(state.status).forEach(s => { if(s==='concluido') total++; });
+            texto += `Status Geral: ${total} de 9 ações concluídas.\n\n`;
+
+            plano.forEach(sec => {
+                texto += `[${sec.titulo}]\n`;
+                sec.acoes.forEach(acao => {
+                    const st = state.status[acao.id] || 'fazer';
+                    const notas = state.notes[acao.id] || [];
+                    texto += `- Ação ${acao.id}: ${acao.titulo} | Status: ${st.toUpperCase()}\n`;
+                    notas.forEach(n => texto += `  * ${n.data}: ${n.texto}\n`);
+                });
+                texto += `\n`;
+            });
+
+            document.getElementById('relatorio-texto').value = texto;
+            document.getElementById('modal').classList.add('active');
+        }
+
+        window.fecharModal = () => document.getElementById('modal').classList.remove('active');
+        
+        window.copiarRelatorio = () => {
+            const txt = document.getElementById('relatorio-texto');
+            txt.select();
+            document.execCommand('copy');
+            alert('Relatório copiado para a área de transferência!');
+        }
+
+        // Autenticação e Conexão em Tempo Real
+        signInAnonymously(auth).then(() => {
+            console.log("Conectado ao Firebase!");
+            docRef = doc(db, "painel", "dados_equipe");
+            
+            // Escuta as mudanças em tempo real!
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    state = docSnap.data();
+                } else {
+                    salvarNuvem(); // Cria o arquivo na primeira vez
+                }
+                renderizar();
+            });
+        }).catch(e => console.error(e));
+
+    </script>
+</body>
+</html>
