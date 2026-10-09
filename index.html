@@ -127,7 +127,13 @@
 
                     const isDoneClass = statusAtual === 'concluido' ? 'done' : '';
 
-                    let notesHtml = notes.map(n => `<div class="bg-gray-100 p-2 text-sm mt-1 border-l-4 border-primary">${n.data} - ${n.texto}</div>`).join('');
+                    // HTML das anotações (agora com o botão de excluir)
+                    let notesHtml = notes.map((n, index) => `
+                        <div class="bg-gray-100 p-2 text-sm mt-1 border-l-4 border-primary flex justify-between items-center group">
+                            <span>${n.data} - ${n.texto}</span>
+                            <button onclick="excluirNota(${acao.id}, ${index})" class="text-red-500 font-bold px-2 py-1 rounded hover:bg-red-100 transition" title="Excluir anotação">X</button>
+                        </div>
+                    `).join('');
 
                     htmlAcoes += `
                         <div class="action-card ${isDoneClass} border-b border-gray-200 py-4 last:border-0">
@@ -174,7 +180,7 @@
             document.getElementById('total-progress').style.width = Math.round((totalDone / 9) * 100) + '%';
         }
 
-        // Funções de Interação (Expostas ao Window para o HTML conseguir chamar)
+        // Funções de Interação
         window.mudarStatus = (id, novoStatus) => {
             state.status[id] = novoStatus;
             salvarNuvem();
@@ -192,6 +198,14 @@
             
             input.value = '';
             salvarNuvem();
+        }
+
+        // NOVA FUNÇÃO: Excluir Nota
+        window.excluirNota = (idAcao, indexDaNota) => {
+            if(confirm("Tem certeza que deseja excluir esta anotação?")) {
+                state.notes[idAcao].splice(indexDaNota, 1); // Remove a nota específica
+                salvarNuvem(); // Atualiza na nuvem
+            }
         }
 
         function salvarNuvem() {
@@ -239,7 +253,7 @@
                 if (docSnap.exists()) {
                     state = docSnap.data();
                 } else {
-                    salvarNuvem(); // Cria o arquivo na primeira vez
+                    salvarNuvem(); 
                 }
                 renderizar();
             });
